@@ -1,5 +1,5 @@
 '''
-Goes all in with pairs.
+Simple example pokerbot, written in Python.
 '''
 from skeleton.actions import FoldAction, CallAction, CheckAction, RaiseAction
 from skeleton.states import GameState, TerminalState, RoundState
@@ -26,13 +26,11 @@ class Player(Bot):
         
         self.strong_hole = False #keep track of whether or not we have strong hole cards
 
-    def allocate_cards(self, my_cards):
+    def evaluate_cards(self, my_cards):
         ranks = {}
 
-
-
         for card in my_cards:
-            card_rank  = card[0]
+            card_rank = card[0]
             card_suit = card[1]
 
 
@@ -50,21 +48,17 @@ class Player(Bot):
             if len(cards) == 1: #single card, can't be in a pair
                 singles.append(cards[0])
             
-            elif len(cards) == 2 or len(cards) == 4: #a single pair or two pairs can be made here, add them all
+            else: #a single pair or two pairs can be made here, add them all
                 pairs += cards
             
-            else: #len(cards) == 3  A single pair plus an extra can be made here
-                pairs.append(cards[0])
-                pairs.append(cards[1])
-                singles.append(cards[2])
 
         if len(pairs) > 0: #we found a pair! update our state to say that this is a strong round
             self.strong_hole = True
         
-        allocation = pairs + singles 
         pass
 
     
+
 
     def handle_new_round(self, game_state, round_state, active):
         '''
@@ -84,7 +78,7 @@ class Player(Bot):
         my_cards = round_state.hands[active]  # your cards
         big_blind = bool(active)  # True if you are the big blind
 
-        self.allocate_cards(my_cards) #allocate our cards to our board allocations
+        self.evaluate_cards(my_cards) #allocate our cards to our board allocations
 
     def handle_round_over(self, game_state, terminal_state, active):
         '''
@@ -133,29 +127,18 @@ class Player(Bot):
         net_upper_raise_bound = round_state.raise_bounds()
         stacks = [my_stack, opp_stack] #keep track of our stacks
 
-        net_cost = 0
         my_action = None
 
         if (RaiseAction in legal_actions and self.strong_hole): #only consider raising if the hand we have is strong
             min_raise, max_raise = round_state.raise_bounds()
-            max_cost = max_raise - my_pip
-
-
-            if max_cost <= my_stack - net_cost: #make sure the max_cost is something we can afford! Must have at least this much left after our other costs
-                my_action = RaiseAction(max_raise) #GO ALL IN!!!
-                net_cost += max_cost
+            raise_amount = max_raise - my_pip
+            my_action = RaiseAction(raise_amount) #GO ALL IN!!!
             
-            elif CallAction in legal_actions[i]: # check-call
-                my_action = CallAction()
-                net_cost += continue_cost
 
-            else:
-                my_action = CheckAction()
-        elif CheckAction in legal_actions: #if we can call, do so
+        elif CheckAction in legal_actions: #if we can check, do so
             my_action = CheckAction()
         else:
             my_action = CallAction()
-            net_cost += continue_cost #add the cost of the continue to our net cost
 
 
         return my_action
