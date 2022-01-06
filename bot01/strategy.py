@@ -86,6 +86,7 @@ class Strategy:
     def update_after_round(self, terminal_state, active):
         previous_state = terminal_state.previous_state  # RoundState before payoffs
         opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
+        
         if self.just_bluffed:
             self.just_bluffed = False
             if opp_cards:

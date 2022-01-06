@@ -76,6 +76,7 @@ class Player(Bot):
         # street = previous_state.street  # 0, 3, 4, or 5 representing when this round ended
         # my_cards = previous_state.hands[active]  # your cards
         # opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
+        
         self.strategy.update_after_round(terminal_state, active)
         self.street_tracker = 0
         self.hud.update_after_round()
