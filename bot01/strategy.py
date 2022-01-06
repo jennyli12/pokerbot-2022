@@ -9,8 +9,8 @@ class Strategy:
         self.times_called_bluff = 0
         self.times_bluff_succeeded = 0
 
-        self.pf_tightness = 0.8
-        self.tightness = 0.85
+        self.pf_tightness = 0.8  # tune
+        self.tightness = 0.85  # tune
 
     def play(self, game_state, round_state, active, strength):
         legal_actions = round_state.legal_actions()  # the actions you are allowed to take
@@ -31,11 +31,11 @@ class Strategy:
             return FoldAction()
 
         raise_bluff = True
-        if not (self.times_called_bluff > 2 and self.times_bluff_succeeded / self.times_called_bluff < 7) and not self.just_bluffed:
+        if not (self.times_called_bluff > 2 and self.times_bluff_succeeded / self.times_called_bluff < 7) and not self.just_bluffed:  # tune
             if active == 0 and legal_actions == {CheckAction, RaiseAction} and strength < 0.8:
                 if street == 5 or random.random() < 0.1:
                     max_cost = min(max_raise - my_pip, my_stack)
-                    if max_cost + my_pip > 100:
+                    if max_cost + my_pip > 100:  # tune
                         self.just_bluffed = True
                         print("Bluffed on round", game_state.round_num)
                         return RaiseAction(max_cost + my_pip)
@@ -49,7 +49,7 @@ class Strategy:
         tightness = self.pf_tightness if street == 0 else self.tightness
         pot = my_contribution + opp_contribution
         
-        if strength > tightness + pot/2000:
+        if strength > tightness + pot/2000:  # tune
             raise_amount = int(my_pip + continue_cost + (strength - 0.3) * (pot + continue_cost))
             raise_amount = min(max(raise_amount, min_raise), max_raise)
 
@@ -72,8 +72,8 @@ class Strategy:
 
         if continue_cost > 0:
             pot_odds = continue_cost / (pot + continue_cost)
-            if strength > max(pot_odds, pot/200):
-                if continue_cost >= 10:
+            if strength > max(pot_odds, pot/200):  # tune
+                if continue_cost >= 10:  # tune
                     if strength > tightness - 0.05:
                         if continue_cost <= my_stack:
                             return CallAction()
