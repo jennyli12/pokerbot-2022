@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from ctypes import *
+from os.path import exists
 
 def number_of_trailing_zeros(n):
         mask = 1
@@ -38,63 +39,81 @@ class HandIndexer:
     SUITS = 4
     RANKS = 13
     CARDS = 52
-    MAX_GROUP_INDEX = 0x1000000
+    MAX_GROUP_INDEX = 0x100000
     ROUND_SHIFT = 4
     ROUND_MASK = 0xf
 
-    nthUnset = np.zeros((1 << RANKS, RANKS), dtype=int)  # 2^13, 13
-    equal = np.empty((1 << (SUITS - 1), SUITS), dtype=bool)  # 8, 3
-    nCrRanks = np.zeros((RANKS + 1, RANKS + 1), dtype=int)  # 14, 14
-    rankSetToIndex = np.zeros(1 << RANKS, dtype=int)  # 2^13
-    indexToRankSet = np.zeros((RANKS + 1, 1 << RANKS), dtype=int)  # 14, 2^13
-    # suitPermutations
-    nCrGroups = np.zeros((MAX_GROUP_INDEX, SUITS + 1), dtype=np.int64)
+    # TODO: This might not actually be good (to load from file) due to space reasons. 
+    # Try computing it during the actual game and see if it runs in time.
+    if all([exists(f) for f in ['nthUnset.npy', 'equal.npy', 'nCrRanks.npy', 'rankSetToIndex.npy', 'indexToRankSet.npy', 'suitPermutations.npy', 'nCrGroups.npy']]):
+        nthUnset = np.load('nthUnset.npy', allow_pickle=True)
+        equal = np.load('equal.npy', allow_pickle=True)
+        nCrRanks = np.load('nCrRanks.npy', allow_pickle=True)
+        rankSetToIndex = np.load('rankSetToIndex.npy', allow_pickle=True)
+        indexToRankSet = np.load('indexToRankSet.npy', allow_pickle=True)
+        suitPermutations = np.load('suitPermutations.npy', allow_pickle=True)
+        nCrGroups = np.load('nCrGroups.npy', allow_pickle=True)
+    else:
+        nthUnset = np.zeros((1 << RANKS, RANKS), dtype=int)  # 2^13, 13
+        equal = np.empty((1 << (SUITS - 1), SUITS), dtype=bool)  # 8, 3
+        nCrRanks = np.zeros((RANKS + 1, RANKS + 1), dtype=int)  # 14, 14
+        rankSetToIndex = np.zeros(1 << RANKS, dtype=int)  # 2^13
+        indexToRankSet = np.zeros((RANKS + 1, 1 << RANKS), dtype=int)  # 14, 2^13
+        nCrGroups = np.zeros((MAX_GROUP_INDEX, SUITS + 1), dtype=np.int64)
 
-    for i in range(1 << (SUITS - 1)):
-        for j in range(1, SUITS):
-            equal[i, j] = (i & 1 << (j - 1)) != 0
+        for i in range(1 << (SUITS - 1)):
+            for j in range(1, SUITS):
+                equal[i, j] = (i & 1 << (j - 1)) != 0
 
-    for i in range(1 << RANKS):
-        set = ~i & (1 << RANKS) - 1
-        for j in range(RANKS):
-            nthUnset[i, j] = 0xff if set == 0 else number_of_trailing_zeros(set)
-            set &= set - 1
+        for i in range(1 << RANKS):
+            set = ~i & (1 << RANKS) - 1
+            for j in range(RANKS):
+                nthUnset[i, j] = 0xff if set == 0 else number_of_trailing_zeros(set)
+                set &= set - 1
 
-    nCrRanks[0, 0] = 1
-    for i in range(1, RANKS + 1):
-        nCrRanks[i, 0] = nCrRanks[i, i] = 1
-        for j in range(1, i):
-            nCrRanks[i, j] = nCrRanks[i - 1, j - 1] + nCrRanks[i - 1, j]
-    
-    nCrGroups[0, 0] = 1
-    for i in range(1, MAX_GROUP_INDEX):
-        nCrGroups[i, 0] = 1
-        if i < SUITS + 1:
-            nCrGroups[i, i] = 1
-        for j in range(1, min(SUITS + 1, i)):
-            nCrGroups[i, j] = nCrGroups[i - 1, j - 1] + nCrGroups[i - 1, j]
+        nCrRanks[0, 0] = 1
+        for i in range(1, RANKS + 1):
+            nCrRanks[i, 0] = nCrRanks[i, i] = 1
+            for j in range(1, i):
+                nCrRanks[i, j] = nCrRanks[i - 1, j - 1] + nCrRanks[i - 1, j]
+        
+        nCrGroups[0, 0] = 1
+        for i in range(1, MAX_GROUP_INDEX):
+            nCrGroups[i, 0] = 1
+            if i < SUITS + 1:
+                nCrGroups[i, i] = 1
+            for j in range(1, min(SUITS + 1, i)):
+                nCrGroups[i, j] = nCrGroups[i - 1, j - 1] + nCrGroups[i - 1, j]
 
-    for i in range(1 << RANKS):
-        set = i
-        j = 1
-        while set != 0:
-            rankSetToIndex[i] += nCrRanks[number_of_trailing_zeros(set), j]
-            j += 1
-            set &= set - 1
-        indexToRankSet[pop_count(i), rankSetToIndex[i]] = i 
+        for i in range(1 << RANKS):
+            set = i
+            j = 1
+            while set != 0:
+                rankSetToIndex[i] += nCrRanks[number_of_trailing_zeros(set), j]
+                j += 1
+                set &= set - 1
+            indexToRankSet[pop_count(i), rankSetToIndex[i]] = i 
 
-    numPermutations = math.factorial(SUITS)
+        numPermutations = math.factorial(SUITS)
 
-    suitPermutations = np.zeros((numPermutations, SUITS), dtype=int)
-    for i in range(numPermutations):
-        index = i
-        used = 0
-        for j in range(SUITS):
-            suit = index % (SUITS - j)
-            index //= SUITS - j
-            shiftedSuit = nthUnset[used, suit]
-            suitPermutations[i, j] = shiftedSuit
-            used |= 1 << shiftedSuit
+        suitPermutations = np.zeros((numPermutations, SUITS), dtype=int)
+        for i in range(numPermutations):
+            index = i
+            used = 0
+            for j in range(SUITS):
+                suit = index % (SUITS - j)
+                index //= SUITS - j
+                shiftedSuit = nthUnset[used, suit]
+                suitPermutations[i, j] = shiftedSuit
+                used |= 1 << shiftedSuit
+
+        np.save('nthUnset', nthUnset)
+        np.save('equal', equal)
+        np.save('nCrRanks', nCrRanks)
+        np.save('rankSetToIndex', rankSetToIndex)
+        np.save('indexToRankSet', indexToRankSet)
+        np.save('suitPermutations', suitPermutations)
+        np.save('nCrGroups', nCrGroups)
 
 
     def __init__(self, cardsPerRound):
