@@ -2,8 +2,15 @@ import numpy as np
 import time
 import eval7 as e7
 import math
+from os.path import exists
 
-CARD_LIST = ['2c', '2d', '2h', '2s', '3c', '3d', '3h', '3s', '4c', '4d', '4h', '4s', '5c', '5d', '5h', '5s', '6c', '6d', '6h', '6s', '7c', '7d', '7h', '7s', '8c', '8d', '8h', '8s', '9c', '9d', '9h', '9s', 'Tc', 'Td', 'Th', 'Ts', 'Jc', 'Jd', 'Jh', 'Js', 'Qc', 'Qd', 'Qh', 'Qs', 'Kc', 'Kd', 'Kh', 'Ks', 'Ac', 'Ad', 'Ah', 'As']
+CORES = 16
+
+CARD_LIST = [
+    '2c', '2d', '2h', '2s', '3c', '3d', '3h', '3s', '4c', '4d', '4h', '4s', '5c', '5d', '5h', '5s', '6c', '6d', '6h', '6s', 
+    '7c', '7d', '7h', '7s', '8c', '8d', '8h', '8s', '9c', '9d', '9h', '9s', 'Tc', 'Td', 'Th', 'Ts', 'Jc', 'Jd', 'Jh', 'Js', 
+    'Qc', 'Qd', 'Qh', 'Qs', 'Kc', 'Kd', 'Kh', 'Ks', 'Ac', 'Ad', 'Ah', 'As'
+]
 CARD_TO_E7 = [e7.Card(c) for c in CARD_LIST]
 OPP_CLUSTERS = [
     e7.HandRange("23s,24s,25s,26s,27s,34s,35s,36s,37s,45s,46s,32o,43o,42o,54o,53o,52o,65o,64o,63o,62o,74o,73o,72o,83o,82o"),
@@ -25,32 +32,78 @@ class OCHSTable:
         self.indexer_2_5 = indexer_2_5
         self.pIdx = pIdx
 
-        indicesToCompute = math.ceil( 100 / 8 )
-        flop_index_pair = (pIdx * indicesToCompute, min((pIdx + 1) * indicesToCompute, self.indexer_2_3.roundSize[1]))
-        self.flop_equities = np.zeros((flop_index_pair[1] - flop_index_pair[0], len(OPP_CLUSTERS)))
-        self.generate_flops(flop_index_pair)
+        if not exists('flop_equities0.npy'):
+            indicesToCompute = math.ceil(self.indexer_2_3.roundSize[1] / CORES)
+            flop_index_pair = (pIdx * indicesToCompute, min((pIdx + 1) * indicesToCompute, self.indexer_2_3.roundSize[1]))
+            self.flop_equities = np.zeros((flop_index_pair[1] - flop_index_pair[0], len(OPP_CLUSTERS)))
+            self.generate_flops(flop_index_pair)
+            np.save('flop_equities' + str(pIdx), self.flop_equities)
 
-        np.save('flop_equities' + str(pIdx), self.flop_equities)
+        if not exists('turn_equities0.npy'):
+            indicesToCompute = math.ceil(self.indexer_2_4.roundSize[1] / CORES)
+            turn_index_pair = (pIdx * indicesToCompute, min((pIdx + 1) * indicesToCompute, self.indexer_2_4.roundSize[1]))
+            self.turn_equities = np.zeros((turn_index_pair[1] - turn_index_pair[0], len(OPP_CLUSTERS)))
+            self.generate_turns(turn_index_pair)
+            np.save('turn_equities' + str(pIdx), self.turn_equities)
+
+        if not exists('river_equities0.npy'):
+            indicesToCompute = math.ceil(self.indexer_2_5.roundSize[1] / CORES)
+            river_index_pair = (pIdx * indicesToCompute, min((pIdx + 1) * indicesToCompute, self.indexer_2_5.roundSize[1]))
+            self.river_equities = np.zeros((river_index_pair[1] - river_index_pair[0], len(OPP_CLUSTERS)))
+            self.generate_rivers(river_index_pair)
+            np.save('river_equities' + str(pIdx), self.river_equities)
 
 
     def generate_flops(self, index_pair):
-        x = time.time()
+        start = time.time()
+        iter = 0
         for i in range(*index_pair):
             cards = [0] * 5
             self.indexer_2_3.unindex(self.indexer_2_3.rounds - 1, i, cards)
             hand = [CARD_TO_E7[cards[0]], CARD_TO_E7[cards[1]]]
-            deadCardMask = (1 << cards[0]) + (1 << cards[1]) + (1 << cards[2]) + (1 << cards[3]) + (1 << cards[4])
             equities = np.zeros(len(OPP_CLUSTERS))
             for turnCard in range(51):
-                if ((1 << turnCard) & deadCardMask) != 0:
+                if turnCard in cards:
                     continue
-                deadCardMask |= 1 << turnCard
                 for riverCard in range(turnCard + 1, 52):
-                    if ((1 << riverCard) & deadCardMask) != 0:
+                    if riverCard in cards:
                         continue
                     board = [CARD_TO_E7[cards[2]], CARD_TO_E7[cards[3]], CARD_TO_E7[cards[4]], CARD_TO_E7[turnCard], CARD_TO_E7[riverCard]]
                     equities += [e7.py_hand_vs_range_exact(hand, oppCluster, board) for oppCluster in OPP_CLUSTERS]
-            self.flop_equities[i - index_pair[0]] = equities / 1081
-            if (i - index_pair[0]) % 1000 == 0:
-                print(time.time() - x, self.pIdx)
-                x = time.time()
+            self.flop_equities[iter] = equities / 1081
+            if iter % 1000 == 1:
+                print('Flops, Process: {} | Hrs Left: {}'.format(self.pIdx, ((time.time() - start) * (index_pair[1] - index_pair[0] - iter - 1) / (iter)) / 3600, 'hrs left'))
+            iter += 1
+
+    
+    def generate_turns(self, index_pair):
+        start = time.time()
+        iter = 0
+        for i in range(*index_pair):
+            cards = [0] * 6
+            self.indexer_2_4.unindex(self.indexer_2_4.rounds - 1, i, cards)
+            hand = [CARD_TO_E7[cards[0]], CARD_TO_E7[cards[1]]]
+            equities = np.zeros(len(OPP_CLUSTERS))
+            for riverCard in range(52):
+                if riverCard in cards:
+                    continue
+                board = [CARD_TO_E7[cards[2]], CARD_TO_E7[cards[3]], CARD_TO_E7[cards[4]], CARD_TO_E7[cards[5]], CARD_TO_E7[riverCard]]
+                equities += [e7.py_hand_vs_range_exact(hand, oppCluster, board) for oppCluster in OPP_CLUSTERS]
+            self.turn_equities[iter] = equities / 46
+            if iter % 3000 == 1:
+                print('Turns, Process: {} | Hrs Left: {}'.format(self.pIdx, ((time.time() - start) * (index_pair[1] - index_pair[0] - iter - 1) / (iter)) / 3600, 'hrs left'))
+            iter += 1
+
+    
+    def generate_rivers(self, index_pair):
+        start = time.time()
+        iter = 0
+        for i in range(*index_pair):
+            cards = [0] * 7
+            self.indexer_2_5.unindex(self.indexer_2_5.rounds - 1, i, cards)
+            hand = [CARD_TO_E7[cards[0]], CARD_TO_E7[cards[1]]]
+            board = [CARD_TO_E7[cards[2]], CARD_TO_E7[cards[3]], CARD_TO_E7[cards[4]], CARD_TO_E7[cards[5]], CARD_TO_E7[cards[6]]]
+            self.river_equities[iter] = [e7.py_hand_vs_range_exact(hand, oppCluster, board) for oppCluster in OPP_CLUSTERS]
+            if iter % 10000 == 1:
+                print('Rivers, Process: {} | Hrs Left: {}'.format(self.pIdx, ((time.time() - start) * (index_pair[1] - index_pair[0] - iter - 1) / (iter)) / 3600, 'hrs left'))
+            iter += 1

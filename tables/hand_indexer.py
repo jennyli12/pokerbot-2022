@@ -4,12 +4,12 @@ from ctypes import *
 from os.path import exists
 
 def number_of_trailing_zeros(n):
-        mask = 1
-        for i in range(32):
-            if (n & mask) != 0:
-                return i
-            mask <<= 1
-        return 32
+    mask = 1
+    for i in range(32):
+        if (n & mask) != 0:
+            return i
+        mask <<= 1
+    return 32
 
 
 def pop_count(n):
@@ -43,17 +43,16 @@ class HandIndexer:
     ROUND_SHIFT = 4
     ROUND_MASK = 0xf
 
-    # TODO: This might not actually be good (to load from file) due to space reasons. 
-    # Try computing it during the actual game and see if it runs in time.
-    if all([exists(f) for f in ['nthUnset.npy', 'equal.npy', 'nCrRanks.npy', 'rankSetToIndex.npy', 'indexToRankSet.npy', 'suitPermutations.npy', 'nCrGroups.npy']]):
-        nthUnset = np.load('nthUnset.npy', allow_pickle=True)
-        equal = np.load('equal.npy', allow_pickle=True)
-        nCrRanks = np.load('nCrRanks.npy', allow_pickle=True)
-        rankSetToIndex = np.load('rankSetToIndex.npy', allow_pickle=True)
-        indexToRankSet = np.load('indexToRankSet.npy', allow_pickle=True)
-        suitPermutations = np.load('suitPermutations.npy', allow_pickle=True)
-        nCrGroups = np.load('nCrGroups.npy', allow_pickle=True)
-    else:
+    # if all([False] + [exists(f) for f in ['nthUnset.npy', 'equal.npy', 'nCrRanks.npy', 'rankSetToIndex.npy', 'indexToRankSet.npy', 'suitPermutations.npy', 'nCrGroups.npy']]):
+    #     nthUnset = np.load('nthUnset.npy', allow_pickle=True)
+    #     equal = np.load('equal.npy', allow_pickle=True)
+    #     nCrRanks = np.load('nCrRanks.npy', allow_pickle=True)
+    #     rankSetToIndex = np.load('rankSetToIndex.npy', allow_pickle=True)
+    #     indexToRankSet = np.load('indexToRankSet.npy', allow_pickle=True)
+    #     suitPermutations = np.load('suitPermutations.npy', allow_pickle=True)
+    #     nCrGroups = np.load('nCrGroups.npy', allow_pickle=True)
+    # else:
+    if True:
         nthUnset = np.zeros((1 << RANKS, RANKS), dtype=int)  # 2^13, 13
         equal = np.empty((1 << (SUITS - 1), SUITS), dtype=bool)  # 8, 3
         nCrRanks = np.zeros((RANKS + 1, RANKS + 1), dtype=int)  # 14, 14
@@ -107,13 +106,13 @@ class HandIndexer:
                 suitPermutations[i, j] = shiftedSuit
                 used |= 1 << shiftedSuit
 
-        np.save('nthUnset', nthUnset)
-        np.save('equal', equal)
-        np.save('nCrRanks', nCrRanks)
-        np.save('rankSetToIndex', rankSetToIndex)
-        np.save('indexToRankSet', indexToRankSet)
-        np.save('suitPermutations', suitPermutations)
-        np.save('nCrGroups', nCrGroups)
+        # np.save('nthUnset', nthUnset)
+        # np.save('equal', equal)
+        # np.save('nCrRanks', nCrRanks)
+        # np.save('rankSetToIndex', rankSetToIndex)
+        # np.save('indexToRankSet', indexToRankSet)
+        # np.save('suitPermutations', suitPermutations)
+        # np.save('nCrGroups', nCrGroups)
 
 
     def __init__(self, cardsPerRound):
