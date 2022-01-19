@@ -11,3 +11,5 @@ build/
 config.py
 .venv
 *.zip
+
+river_clusters.npy

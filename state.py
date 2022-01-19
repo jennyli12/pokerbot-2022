@@ -1,15 +1,31 @@
 from collections import namedtuple
 import eval7
-# import random
+import numpy as np
 
-# TODO: swaps (need to store if a swap occurred)
-# FLOP_PERCENT = 0.1
-# TURN_PERCENT = 0.05
+from tables.hand_indexer import HandIndexer
+
+
+indexer_2 = HandIndexer([2])
+indexer_2_3 = HandIndexer([2, 3])
+indexer_2_4 = HandIndexer([2, 4])
+indexer_2_5 = HandIndexer([2, 5])
+
+flop_clusters = np.load('tables/flop_clusters.npy')
+turn_clusters = np.load('tables/turn_clusters.npy')
+river_clusters = np.load('tables/river_clusters.npy')
+
 STARTING_STACK = 200
 BIG_BLIND = 2
 SMALL_BLIND = 1
 
-RAISES = [0.75, 1]  # percentage of pot for r0 / r1
+RAISES = [0.66, 1, 2.5]  # percentage of pot for raise
+RAISE_LETTER = ['x', 'y', 'z']
+RAISE_LETTER_INV = {'x': 0, 'y': 1, 'z': 2}
+RAISE_SET = {'x', 'y', 'z'}
+
+RANK = {'2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, 'T': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12}
+SUIT = {'s': 0, 'h': 1, 'd': 2, 'c': 3}
+RANK_INV = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
 
 TerminalState = namedtuple('TerminalState', ['deltas'])
 
@@ -23,28 +39,52 @@ def get_root_state():
     stacks = [STARTING_STACK - SMALL_BLIND, STARTING_STACK - BIG_BLIND]
     return RoundState(0, 0, pips, stacks, hands, deck, "")
 
-# def swap(player_card_index, hands, deck):
-#     '''
-#     Swaps player's card with a card from the deck.
-#     '''
-#     card_index = player_card_index % len(hands)
-#     player_index = player_card_index // len(hands)
-#     random_card = deck.deal(1)
-#     deck.cards.append(hands[player_index][card_index])
-#     hands[player_index][card_index] = random_card[0]
-#     return hands, deck
+def get_first_action_states():
+    states = []
+    for i in range(169):
+        rank1 = RANK_INV[i // 13]
+        rank2 = RANK_INV[i % 13]
+        suit1 = 's'
+        if i % 13 > i // 13:
+            suit2 = 's'
+        else:
+            suit2 = 'h'
+        sb_hand = [eval7.Card(rank1 + suit1), eval7.Card(rank2 + suit2)]
+
+        deck = eval7.Deck()
+        deck.cards = [card for card in deck.cards if card not in set(sb_hand)]
+        deck.shuffle()
+        bb_hand = deck.deal(2)
+        hands = [sb_hand, bb_hand]
+        deck = ([], deck)
+        pips = [SMALL_BLIND, BIG_BLIND]
+        stacks = [STARTING_STACK - SMALL_BLIND, STARTING_STACK - BIG_BLIND]
+        states.append(RoundState(0, 0, pips, stacks, hands, deck, ""))
+    return states
+
 
 class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks', 'hands', 'deck', 'history'])):
     '''
     Encodes the game tree for one round of poker.
     '''
+    def get_card_index(self, card):
+        rank = RANK[card[0]]
+        suit = SUIT[card[1]]
+        return rank * 4 + suit
 
     def get_infoset_str(self):
         active = self.button % 2
         cards = self.hands[active] + self.deck[0]
-        index = "".join([str(c) for c in cards])  # TODO: indexing function
-        street_str = {0: 'P', 3: 'F', 4: 'T', 5: 'R'}
-        return self.history + street_str[self.street] + index
+        card_array = [self.get_card_index(str(card)) for card in cards]
+        if self.street == 0:
+            card_str = 'P' + str(indexer_2.index_last(card_array))
+        elif self.street == 3:
+            card_str = 'F' + str(flop_clusters[indexer_2_3.index_last(card_array)])
+        elif self.street == 4:
+            card_str = 'T' + str(turn_clusters[indexer_2_4.index_last(card_array)])
+        else:
+            card_str = 'R' + str(river_clusters[indexer_2_5.index_last(card_array)])
+        return self.history + card_str
 
     def showdown(self):
         '''
@@ -64,13 +104,16 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         active = self.button % 2
         continue_cost = self.pips[1-active] - self.pips[active]
 
-        min_raise, max_raise = self.raise_bounds()
         raise_actions = []
-        for i in range(len(RAISES)):
-            raise_amount = RAISES[i] * 2 * self.pips[1-active] + continue_cost
-            if raise_amount >= min_raise and raise_amount < max_raise:
-                raise_actions.append('r' + str(i))
-        raise_actions.append('a')  # all in
+        too_many_raises = len(self.history) >= 5 and self.history[-1] in RAISE_SET and self.history[-2] in RAISE_SET and \
+            self.history[-3] in RAISE_SET and self.history[-4] in RAISE_SET and self.history[-5] in RAISE_SET
+        if not too_many_raises:
+            min_raise, max_raise = self.raise_bounds()
+            for i in range(len(RAISES)):
+                raise_amount = int(RAISES[i] * 2 * self.pips[1-active] + continue_cost)
+                if raise_amount >= min_raise and raise_amount < max_raise:
+                    raise_actions.append(RAISE_LETTER[i])
+            raise_actions.append('a')  # all in
 
         if continue_cost == 0:
             # we can only raise the stakes if both players can afford it
@@ -105,10 +148,6 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         new_hands = self.hands.copy()
         new_deck = eval7.Deck()
         new_deck.cards = self.deck[1].cards.copy()
-        # if self.street == 0 or self.street == 3:
-        #     for i in range(sum([len(hand) for hand in self.hands])):
-        #         if random.random() < (FLOP_PERCENT if self.street == 0 else TURN_PERCENT):
-        #             new_hands, new_deck = swap(i, new_hands, new_deck)
         board = self.deck[0] + new_deck.deal(3 if self.street == 0 else 1)
         return RoundState(1, new_street, [0, 0], self.stacks, new_hands, (board, new_deck), self.history)
 
@@ -133,7 +172,8 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
             return state.proceed_street()
         if action == 'k':
             if (self.street == 0 and self.button > 0) or self.button > 1:  # both players acted
-                return self.proceed_street()
+                state = RoundState(self.button + 1, self.street, self.pips, self.stacks, self.hands, self.deck, self.history + action)
+                return state.proceed_street()
             # let opponent act
             return RoundState(self.button + 1, self.street, self.pips, self.stacks, self.hands, self.deck, self.history + action)
         # isinstance(action, RaiseAction)
@@ -144,7 +184,7 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
             raise_amount = self.raise_bounds()[1]
         else:
             continue_cost = self.pips[1-active] - self.pips[active]
-            raise_amount = RAISES[int(action[-1])] * 2 * self.pips[1-active] + continue_cost
+            raise_amount = int(RAISES[RAISE_LETTER_INV[action]] * 2 * self.pips[1-active] + continue_cost)
 
         contribution = raise_amount - new_pips[active]
         new_stacks[active] -= contribution
