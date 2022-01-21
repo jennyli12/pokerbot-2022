@@ -1,6 +1,7 @@
 from collections import namedtuple
 import eval7
 import numpy as np
+import random
 
 from tables.hand_indexer import HandIndexer
 
@@ -18,7 +19,7 @@ STARTING_STACK = 200
 BIG_BLIND = 2
 SMALL_BLIND = 1
 
-RAISES = [0.66, 1, 2.5]  # percentage of pot for raise
+RAISES = [0.75, 1.5, 3]  # percentage of pot for raise
 RAISE_LETTER = ['x', 'y', 'z']
 RAISE_LETTER_INV = {'x': 0, 'y': 1, 'z': 2}
 RAISE_SET = {'x', 'y', 'z'}
@@ -27,8 +28,28 @@ RANK = {'2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, 'T': 8, 
 SUIT = {'s': 0, 'h': 1, 'd': 2, 'c': 3}
 RANK_INV = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
 
-TerminalState = namedtuple('TerminalState', ['deltas'])
 
+def get_root_state_parallel(traverser, possible_hands):
+    hand_str = random.choice(possible_hands)
+    rank1, rank2 = hand_str[0], hand_str[1]
+    suit1 = 's'
+    if len(hand_str) == 2 or hand_str[-1] == 'o':
+        suit2 = 'h'
+    else:
+        suit2 = 's'
+    traverser_hand = [eval7.Card(rank1 + suit1), eval7.Card(rank2 + suit2)]
+    deck = eval7.Deck()
+    deck.cards = [card for card in deck.cards if card not in set(traverser_hand)]
+    deck.shuffle()
+    other_hand = deck.deal(2)
+    if traverser == 0:
+        hands = [traverser_hand, other_hand]
+    else:
+        hands = [other_hand, traverser_hand]
+    deck = ([], deck)
+    pips = [SMALL_BLIND, BIG_BLIND]
+    stacks = [STARTING_STACK - SMALL_BLIND, STARTING_STACK - BIG_BLIND]
+    return RoundState(0, 0, pips, stacks, hands, deck, "")
 
 def get_root_state():
     deck = eval7.Deck()
@@ -62,6 +83,7 @@ def get_first_action_states():
         states.append(RoundState(0, 0, pips, stacks, hands, deck, ""))
     return states
 
+TerminalState = namedtuple('TerminalState', ['deltas'])
 
 class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks', 'hands', 'deck', 'history'])):
     '''
@@ -110,7 +132,8 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         if not too_many_raises:
             min_raise, max_raise = self.raise_bounds()
             for i in range(len(RAISES)):
-                raise_amount = int(RAISES[i] * 2 * self.pips[1-active] + continue_cost)
+                pot = 2 * STARTING_STACK - (self.stacks[0] + self.stacks[1])
+                raise_amount = int(RAISES[i] * (pot + continue_cost)) + continue_cost + self.pips[active]
                 if raise_amount >= min_raise and raise_amount < max_raise:
                     raise_actions.append(RAISE_LETTER[i])
             raise_actions.append('a')  # all in
@@ -184,7 +207,8 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
             raise_amount = self.raise_bounds()[1]
         else:
             continue_cost = self.pips[1-active] - self.pips[active]
-            raise_amount = int(RAISES[RAISE_LETTER_INV[action]] * 2 * self.pips[1-active] + continue_cost)
+            pot = 2 * STARTING_STACK - (self.stacks[0] + self.stacks[1])
+            raise_amount = int(RAISES[RAISE_LETTER_INV[action]] * (pot + continue_cost)) + continue_cost + self.pips[active]
 
         contribution = raise_amount - new_pips[active]
         new_stacks[active] -= contribution
