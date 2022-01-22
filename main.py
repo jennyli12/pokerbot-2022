@@ -3,6 +3,7 @@ from state import get_root_state
 import time
 import random
 import pickle
+import numpy as np
 
 
 NUM_THREADS = 1
@@ -10,7 +11,7 @@ STRATEGY_INTERVAL = int(max(1, 1000 / NUM_THREADS))
 PRUNE_THRESHOLD = 2e7 / NUM_THREADS
 LCFR_THRESHOLD = 2e7 / NUM_THREADS
 DISCOUNT_INTERVAL = int(1e6 / NUM_THREADS)
-SAVE_TO_DISK_INTERVAL = int(1e6 / NUM_THREADS)
+SAVE_TO_DISK_INTERVAL = int(5e5 / NUM_THREADS)
 TEST_GAMES_INTERVAL = int(1e5 / NUM_THREADS)
 
 
@@ -40,11 +41,15 @@ if __name__ == "__main__":
                 trainer.cfr(get_root_state(), traverser)
         if t % SAVE_TO_DISK_INTERVAL == 0:
             print("SAVING")
-            to_save = {}
+            node_map_save = {}
+            avg_strategy_save = {}
             for s, infoset in node_map.items():
-                to_save[s] = infoset.get_average_strategy()
+                node_map_save[s] = np.concatenate((infoset.cumul_regret, infoset.cumul_strategy))
+                avg_strategy_save[s] = infoset.get_average_strategy()
             with open('nodemap.pickle', 'wb') as f:
-                pickle.dump(to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump(node_map_save, f, protocol=pickle.HIGHEST_PROTOCOL)
+            with open('avgstrategy.pickle', 'wb') as f:
+                pickle.dump(avg_strategy_save, f, protocol=pickle.HIGHEST_PROTOCOL)
         if t < LCFR_THRESHOLD and t % DISCOUNT_INTERVAL == 0:
             d = (t / DISCOUNT_INTERVAL) / (t / DISCOUNT_INTERVAL + 1)
             trainer.discount_infosets(d)

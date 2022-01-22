@@ -22,7 +22,7 @@ SMALL_BLIND = 1
 RAISES = [0.75, 1.5, 3]  # percentage of pot for raise
 RAISE_LETTER = ['x', 'y', 'z']
 RAISE_LETTER_INV = {'x': 0, 'y': 1, 'z': 2}
-RAISE_SET = {'x', 'y', 'z'}
+RAISE_SET = {'x', 'y', 'z', 'a'}
 
 RANK = {'2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, 'T': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12}
 SUIT = {'s': 0, 'h': 1, 'd': 2, 'c': 3}
