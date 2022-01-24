@@ -24,7 +24,7 @@ class Main {
         for (int t = 1; ; t++) {
             if (t % 1000 == 0) {
                 System.out.println(t);
-                System.out.println("Iterations per second " + 1000 * t / (System.currentTimeMillis() - startTime));
+                System.out.println("Iterations per second " + 1000.0 * t / (System.currentTimeMillis() - startTime));
                 System.out.println("Minutes running " + (System.currentTimeMillis() - startTime) / 60000);
                 System.out.println("Infosets " + Global.nodeMap.size());
             } 
@@ -90,6 +90,14 @@ class Main {
         // }
     }
     public static void saveToFile() throws Exception {
+        System.out.println("SAVING");
+        FileWriter writer = new FileWriter("nodeMap.txt");
+        BufferedWriter buffer = new BufferedWriter(writer);
+        for (String key : Global.nodeMap.keySet()) {
+            buffer.write(key + ": " + Arrays.toString(Global.nodeMap.get(key).getAverageStrategy()));
+            buffer.newLine();
+        }
+        buffer.close();
         ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream("nodeMap"));
         outputStream.writeObject(Global.nodeMap);
         outputStream.close();
