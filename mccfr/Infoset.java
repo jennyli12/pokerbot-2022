@@ -1,6 +1,8 @@
 package mccfr;
 
-public class Infoset{
+import java.io.Serializable;
+
+public class Infoset implements Serializable {
     public float[] cumulRegret;
     public float[] cumulStrategy;
 

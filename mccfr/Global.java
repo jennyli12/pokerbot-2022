@@ -14,7 +14,7 @@ public class Global {
     public static byte[] turnClusters;
     public static byte[] riverClusters;
 
-    public static final int NOF_THREADS = 4;
+    public static final int NOF_THREADS = 1;
 
     public static ConcurrentHashMap<String, Infoset> nodeMap = new ConcurrentHashMap<String, Infoset>(1000000, 0.75f, NOF_THREADS);
 
