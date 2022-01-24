@@ -22,14 +22,12 @@ class Main {
         
         Trainer trainer = new Trainer();
         for (int t = 1; ; t++) {
-            if (t % 1000 == 0) {
+            if (t % testGamesInterval == 0) {
+                trainer.printStartingHandsChart();
                 System.out.println(t);
                 System.out.println("Iterations per second " + 1000.0 * t / (System.currentTimeMillis() - startTime));
                 System.out.println("Minutes running " + (System.currentTimeMillis() - startTime) / 60000);
                 System.out.println("Infosets " + Global.nodeMap.size());
-            } 
-            if (t % testGamesInterval == 0) {
-                trainer.printStartingHandsChart();
             }
             for (int traverser = 0; traverser < 2; traverser++) {
                 if (t % strategyInterval == 0) {
